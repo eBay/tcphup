@@ -2,7 +2,7 @@
 
 Hang up on TCP connections.
 
-tcphup is particularily useful for dropping stale TCP keep alive connections.
+tcphup is particularily useful for dropping stale TCP keep alive connections during service failovers.
 
 # Why tcphup
 
