@@ -15,6 +15,7 @@ The primary disadvantages of existing approaches are:
 the RST packet.
 2. For keep alive connections, idleness causes delays in trying to insert the
 RST packet.
+3. Many application I/O frameworks do not handle a flood of RST's as gracefully as they would proper FIN's.
 
 # tcphup is different
 
