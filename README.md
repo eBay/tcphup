@@ -28,7 +28,7 @@ tcphup works with multi-path TCP.
 
 ## Example use case
 
-An application opens keep alive connections to a service which has been failed over, however due to large
+An application opens keep alive connections to a service which is then failed over (region exit, network split, etc.), however due to large
 keep alive intervals or counts, the application does not connect to the new
 service IP in a timely fashion due to long keepalive_cnt and keepalive_interval options on the socket.
 
