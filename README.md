@@ -19,20 +19,23 @@ RST packet.
 
 # tcphup is different
 
-tcphup sends a proper shutdown to the socket, a proper FIN, as if the client had
-called close(2) on the socket without any modifications to running applications.
+tcphup sends a proper shutdown to the socket, resulting in a proper FIN, as if a client had
+called close(2) to a specific socket without any modifications to the running applications.
 
-tcphup is more efficient and provides better reliability in closing the connection.
+tcphup is more efficient (libnetlink to traverse connections) and provides better heuristics for closing stale TCP connections.
+
+tcphup works with multi-path TCP.
 
 ## Example use case
 
-An application opens keep alive connections to a service, however due to large
-keep alive intervals or counts, the application cannot fail over to a new
-service IP in the event of fail over(s) in a timely fashion.
+An application opens keep alive connections to a service which has been failed over, however due to large
+keep alive intervals or counts, the application does not connect to the new
+service IP in a timely fashion due to long keepalive_cnt and keepalive_interval options on the socket.
 
-tcphup issuing a close(2) on behalf of the application hangs up the keep alive
-connection, which would allow the application to handle service fail overs more
-gracefully.
+tcphup to kill the existing connections for the stale IP (or the same IP if anycast or a VIP).
+
+tcphup issues a close(2) on behalf of the application, hangs up the keep alive
+connection, which allows the application to handle the service fail over.
 
 # Dependencies
 - linux > 5.10.0
