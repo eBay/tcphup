@@ -47,6 +47,12 @@ $ make
 
 # Usage
 
+Basic usage:
+
+```bash
+tcphup <IP> <port>
+```
+
 Kill all port 80/tcp connections to httpstat.us:
 
 ```bash
