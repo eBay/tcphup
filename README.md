@@ -101,9 +101,11 @@ In order to address this, let's presume tcp_keep_alive_intvl is reduced, let's s
 |10|69210 bytes|~1.5 minutes|
 |5|138240 bytes|45 seconds|
 |3|230400 bytes|27 seconds|
-|1|691200 bytes|1 seconds|
+|1|691200 bytes|9 seconds|
 
 One could further tune tcp_keepalive_probes to be more aggressive - reducing TTH in exchange for possibly more frequent false positives during network events.
+
+tcp_keepalive_time is ignored, it has no effect on reducing the costs related to a service failure scenario.
 
 Simply reducing the keepalive parameters in an effort to reduce TTH and network chatter has costs which increase appreciably with the number of keepalive-enabled services and clients.
 
