@@ -73,7 +73,13 @@ An application is most likely connected to many services at once, having to reco
 
 # Why not just reduce keepalive_intvl / keepalive_probes (count) / keepalive_time?
 
-The default values in Linux 5.x follow:
+Reduced values would create more network chatter with TCP keepalive packets between multiple hosts.
+
+TCP keep alive packets are, at a minimum, 64 bytes.
+
+A "run of the mill" server serving frontend web traffic may have persistent connections to redis, postgresql, and object store. Let's model this out with the default system TCP keep alive values.
+
+Default values in Linux 5.x follow:
 
 |param|value|
 |--|--|
@@ -81,7 +87,27 @@ The default values in Linux 5.x follow:
 |tcp_keepalive_probes|9 times|
 |tcp_keepalive_time|7200 seconds|
 
-An explanation of these from https://tldp.org/HOWTO/TCP-Keepalive-HOWTO/usingkeepalive.html follows:
+Each web frontend server 3 services sends 64 bytes every 75 seconds. For the purpose of this example, presume there is no packet loss (tcp_keepalive_probes > 1 is ignored), in 1 hour that is 9216 bytes of keepalive traffic from each web frontend server.
+
+In this setup, there are 9 probes sent before a connection is finally hung up (without data packets in between), 75 * 9, that is up to 11 minutes to hang up a stale connection.
+
+In order to address this, let's presume tcp_keep_alive_intvl is reduced, let's see what effect what halving the keepalive_intvl has:
+
+|tcp_keepalive_intvl|keepalive traffic (1 hour)|max TTH (time to hangup)|
+|--|--|
+|75|9216 bytes|~11.25 minutes|
+|38|18189 bytes|~5.5 minutes|
+|19|36378 bytes|~2.5 minutes|
+|10|69210 bytes|~1.5 minutes|
+|5|138240 bytes|45 seconds|
+|3|230400 bytes|27 seconds|
+|1|691200 bytes|1 seconds|
+
+One could further tune tcp_keepalive_probes to be more aggressive - reducing TTH in exchange for possibly more frequent false positives during network events.
+
+Simply reducing the keepalive parameters in an effort to reduce TTH and network chatter has costs which increase appreciably with the number of keepalive-enabled services and clients.
+
+Explanation of the tcp_keepalive_* parameters from https://tldp.org/HOWTO/TCP-Keepalive-HOWTO/usingkeepalive.html follows:
 
 tcp_keepalive_time
 >    the interval between the last data packet sent (simple ACKs are not considered data) and the first keepalive probe; after the connection is marked to need keepalive, this counter is not used any further
@@ -91,8 +117,6 @@ tcp_keepalive_intvl
 
 tcp_keepalive_probes 
 >    the number of unacknowledged probes to send before considering the connection dead and notifying the application layer
-    
-
 
 # License
 [MIT License](./LICENSE.txt)
