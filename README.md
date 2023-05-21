@@ -93,8 +93,8 @@ In this setup, there are 9 probes sent before a connection is finally hung up (w
 
 In order to address this, let's presume tcp_keep_alive_intvl is reduced, let's see what effect what halving the keepalive_intvl has:
 
-|tcp_keepalive_intvl|keepalive traffic (1 hour)|max TTH (time to hangup)|
-|--|--|
+| tcp_keepalive_intvl | keepalive traffic (1 hour) | max TTH (time to hangup) |
+|--|--|--|
 |75|9216 bytes|~11.25 minutes|
 |38|18189 bytes|~5.5 minutes|
 |19|36378 bytes|~2.5 minutes|
