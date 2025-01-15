@@ -4,6 +4,8 @@ Hang up on TCP connections.
 
 tcphup is particularily useful for dropping stale TCP keep alive connections during service failovers.
 
+tcphup targets the destinations to hang up on based on L3/L4 address info.
+
 # Why tcphup
 
 tcphup is an alternative to existing approaches which attempt to
@@ -12,19 +14,19 @@ man-in-the-middle TCP RST packets on existing flows.
 The primary disadvantages of existing approaches are:
 
 1. The next sequence number has to be guessed and front run in order to insert
-the RST packet.
+the RST packet. This approach also incurs a performance penalty.
 2. For keep alive connections, idleness causes delays in trying to insert the
 RST packet.
 3. Numerous application I/O frameworks do not handle a flood of RST's on the wire as gracefully as they would a proper close(2) call.
 
 # tcphup is different
 
-tcphup sends a proper shutdown to the socket, resulting in a proper FIN, as if a client had
-called close(2) to a specific socket without any modifications to the running applications.
+tcphup does a proper shutdown(2) on the socket, resulting in a proper FIN, as if a client had
+called shutdown(2)/close(2) to a socket without any modifications to the running applications.
 
 tcphup is more efficient (libnetlink to traverse connections) and provides better heuristics for closing stale TCP connections.
 
-tcphup works with multi-path TCP.
+tcphup works with multi-path TCP and only requires glibc.
 
 ## Example use case
 
@@ -39,6 +41,7 @@ connection, which allows the application to handle the service fail over.
 
 # Dependencies
 - linux > 5.10.0
+- glibc
 
 # Build
 ```bash

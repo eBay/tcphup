@@ -124,6 +124,17 @@ void thup_parse_tcp_info(struct nlmsghdr *nlh, const char *search_ip, int search
                 continue;
             }
 
+            struct timeval ll_tv;
+            ll_tv.tv_sec = 1;
+            ll_tv.tv_usec = 0;
+
+            int kac = 1;
+            setsockopt(sfd, SOL_SOCKET, SO_SNDTIMEO, &ll_tv, sizeof(ll_tv));
+            setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, &ll_tv, sizeof(ll_tv));
+            setsockopt(sfd, IPPROTO_TCP, TCP_KEEPCNT, &kac, sizeof(kac));
+            setsockopt(sfd, IPPROTO_TCP, TCP_KEEPIDLE, &kac, sizeof(kac));
+            setsockopt(sfd, IPPROTO_TCP, TCP_KEEPINTVL, &kac, sizeof(kac));
+
             shutdown(sfd, SHUT_RDWR);
 
             close(sfd);
