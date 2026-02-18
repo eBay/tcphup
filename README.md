@@ -1,8 +1,8 @@
 # tcphup
 
-Hang up on TCP connections.
+Hang up on TCP connections and manipulate TCP socket options.
 
-tcphup is particularily useful for dropping stale TCP keep alive connections during service failovers.
+tcphup is particularily useful for dropping stale TCP keep alive connections during service failovers. It can also manipulate TCP socket options on existing connections before hanging them up.
 
 tcphup targets the destinations to hang up on based on L3/L4 address info.
 
@@ -23,6 +23,8 @@ RST packet.
 
 tcphup does a proper shutdown(2) on the socket, resulting in a proper FIN, as if a client had
 called shutdown(2)/close(2) to a socket without any modifications to the running applications.
+
+tcphup can also manipulate TCP socket options (like TCP_KEEPINTVL, TCP_SYNCNT, etc.) on existing connections before shutting them down, allowing for fine-tuned control over connection behavior.
 
 tcphup is more efficient (libnetlink to traverse connections) and provides better heuristics for closing stale TCP connections.
 
@@ -53,7 +55,7 @@ $ make
 Basic usage:
 
 ```bash
-tcphup <IP> <port>
+tcphup [-i] [-m OPTION:value] ... <IP> <port>
 ```
 
 Kill all port 80/tcp connections to httpstat.us:
@@ -71,6 +73,108 @@ $ curl -v httpstat.us/200?sleep=500000
 # in another tty
 $ tcphup $(getent hosts httpstat.us | awk '{ print $1 }') 0
 ```
+
+## Inspecting TCP Options
+
+Use the `-i` flag to display all TCP and socket options for matching connections without shutting them down:
+
+```bash
+# Display TCP options for all connections to 192.168.1.1:80
+$ tcphup -i 192.168.1.1 80
+
+=== Connection: pid=1234, fd=5 ===
+  TCP_KEEPIDLE:      7200
+  TCP_KEEPINTVL:     75
+  TCP_KEEPCNT:       9
+  TCP_SYNCNT:        6
+  TCP_LINGER2:       60
+  TCP_DEFER_ACCEPT:  0
+  TCP_WINDOW_CLAMP:  0
+  TCP_USER_TIMEOUT:  0
+  TCP_NODELAY:       1
+  TCP_MAXSEG:        1448
+  TCP_CORK:          0
+  TCP_QUICKACK:      1
+  TCP State:         1
+  TCP RTT:           1234 us
+  TCP RTT Variance:  567 us
+  TCP RTO:           204000 us
+  TCP SND_MSS:       1448
+  TCP RCV_MSS:       536
+  TCP Retransmits:   0
+  TCP Total Retrans: 0
+  SO_KEEPALIVE:      1
+  SO_SNDBUF:         16384
+  SO_RCVBUF:         87380
+  SO_REUSEADDR:      0
+  SO_REUSEPORT:      0
+  SO_ERROR:          0
+  SO_TYPE:           1
+  SO_SNDTIMEO:       0.000000 s
+  SO_RCVTIMEO:       0.000000 s
+  SO_LINGER:         l_onoff=0, l_linger=0
+```
+
+## Manipulating Socket Options
+
+You can manipulate TCP and socket options on existing connections before shutting them down using the `-m` flag. Multiple `-m` options can be specified:
+
+```bash
+# Set TCP_KEEPINTVL to 3 seconds before shutdown
+$ tcphup -m TCP_KEEPINTVL:3 192.168.1.1 80
+
+# Set multiple TCP options
+$ tcphup -m TCP_KEEPINTVL:3 -m TCP_SYNCNT:1 -m TCP_LINGER2:1 192.168.1.1 80
+
+# Set socket timeouts (in seconds, decimals supported)
+$ tcphup -m SO_SNDTIMEO:1.5 -m SO_RCVTIMEO:2.0 192.168.1.1 80
+
+# Adjust socket buffers
+$ tcphup -m SO_SNDBUF:65536 -m SO_RCVBUF:131072 192.168.1.1 80
+
+# Set linger (onoff,seconds or just seconds)
+$ tcphup -m SO_LINGER:1,30 192.168.1.1 80
+$ tcphup -m SO_LINGER:30 192.168.1.1 80  # Assumes onoff=1
+
+# Combine TCP and socket options
+$ tcphup -m TCP_KEEPINTVL:3 -m SO_SNDTIMEO:1.0 -m SO_KEEPALIVE:1 192.168.1.1 80
+```
+
+### Supported TCP Options (SOL_TCP)
+
+- `TCP_KEEPIDLE` - Time before keepalive probes start (seconds)
+- `TCP_KEEPINTVL` - Interval between keepalive probes (seconds)
+- `TCP_KEEPCNT` - Number of keepalive probes
+- `TCP_SYNCNT` - Number of SYN retransmits
+- `TCP_LINGER2` - Time to wait in FIN-WAIT-2 state (seconds)
+- `TCP_DEFER_ACCEPT` - Wait for data before accepting (seconds)
+- `TCP_WINDOW_CLAMP` - Bound advertised window (bytes)
+- `TCP_USER_TIMEOUT` - Maximum timeout for unacknowledged data (milliseconds)
+- `TCP_NODELAY` - Disable Nagle's algorithm (0 or 1)
+- `TCP_MAXSEG` - Maximum segment size (bytes)
+- `TCP_CORK` - Cork the socket (0 or 1)
+- `TCP_QUICKACK` - Enable quick ACKs (0 or 1)
+
+### Supported Socket Options (SOL_SOCKET)
+
+- `SO_KEEPALIVE` - Enable/disable keepalive (0 or 1)
+- `SO_SNDBUF` - Send buffer size (bytes)
+- `SO_RCVBUF` - Receive buffer size (bytes)
+- `SO_REUSEADDR` - Reuse local addresses (0 or 1)
+- `SO_REUSEPORT` - Reuse port (0 or 1)
+- `SO_SNDTIMEO` - Send timeout (decimal seconds, e.g., 1.5)
+- `SO_RCVTIMEO` - Receive timeout (decimal seconds, e.g., 2.0)
+- `SO_LINGER` - Linger on close (format: `onoff,seconds` or just `seconds`)
+
+### Value Formats
+
+- **Integer options**: Plain integer (e.g., `TCP_KEEPCNT:5`)
+- **Timeout options**: Decimal seconds (e.g., `SO_SNDTIMEO:1.5` for 1.5 seconds)
+- **Linger option**: Two formats supported:
+  - `SO_LINGER:1,30` - onoff=1, linger=30 seconds
+  - `SO_LINGER:30` - onoff=1 (implied), linger=30 seconds
+
+Note: Some options cannot be changed after a connection is established (e.g., `TCP_SYNCNT`, `TCP_MAXSEG`). Options like keepalive settings, timeouts, and buffers work well on established connections.
 
 # Why not not just restart the application during failover?
 
