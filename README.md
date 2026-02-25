@@ -2,7 +2,7 @@
 
 Hang up on TCP connections and manipulate TCP socket options.
 
-tcphup is particularily useful for dropping stale TCP keep alive connections during service failovers. It can also manipulate TCP socket options on existing connections before hanging them up.
+tcphup is particularily useful for dropping stale TCP keep alive connections during service failovers.
 
 tcphup targets the destinations to hang up on based on L3/L4 address info.
 
@@ -24,7 +24,10 @@ RST packet.
 tcphup does a proper shutdown(2) on the socket, resulting in a proper FIN, as if a client had
 called shutdown(2)/close(2) to a socket without any modifications to the running applications.
 
-tcphup can also manipulate TCP socket options (like TCP_KEEPINTVL, TCP_SYNCNT, etc.) on existing connections before shutting them down, allowing for fine-tuned control over connection behavior.
+tcphup can operate in three modes:
+1. **Shutdown mode** (no flags): Closes matching connections
+2. **Manipulation mode** (`-m` flag): Sets TCP socket options on matching connections without shutting them down
+3. **Info mode** (`-i` flag): Displays TCP socket options (can be combined with `-m` to verify changes)
 
 tcphup is more efficient (libnetlink to traverse connections) and provides better heuristics for closing stale TCP connections.
 
@@ -57,6 +60,12 @@ Basic usage:
 ```bash
 tcphup [-i] [-m OPTION:value] ... <IP> <port>
 ```
+
+**Modes:**
+- No flags: Shutdown connections
+- `-m`: Manipulate socket options (no shutdown)
+- `-i`: Display socket options
+- `-i -m`: Manipulate and display (for verification)
 
 Kill all port 80/tcp connections to httpstat.us:
 
@@ -117,27 +126,38 @@ $ tcphup -i 192.168.1.1 80
 
 ## Manipulating Socket Options
 
-You can manipulate TCP and socket options on existing connections before shutting them down using the `-m` flag. Multiple `-m` options can be specified:
+You can manipulate TCP and socket options on existing connections using the `-m` flag. Multiple `-m` options can be specified.
+
+**Important**: When `-m` options are specified, connections are **NOT** shut down. Socket manipulation and shutdown are separate modes:
+
+- **No flags**: Shutdown connections (no manipulation)
+- **`-m` only**: Manipulate socket options WITHOUT shutdown
+- **`-i` only**: Display current socket options
+- **`-i -m`**: Manipulate options and display the results (for verification)
 
 ```bash
-# Set TCP_KEEPINTVL to 3 seconds before shutdown
+# Manipulation mode: Set TCP option WITHOUT closing connection
 $ tcphup -m TCP_KEEPINTVL:3 192.168.1.1 80
 
-# Set multiple TCP options
+# Manipulation mode: Set multiple TCP options WITHOUT closing
 $ tcphup -m TCP_KEEPINTVL:3 -m TCP_SYNCNT:1 -m TCP_LINGER2:1 192.168.1.1 80
 
-# Set socket timeouts (in seconds, decimals supported)
+# Manipulation mode: Set socket timeouts WITHOUT closing (decimals supported)
 $ tcphup -m SO_SNDTIMEO:1.5 -m SO_RCVTIMEO:2.0 192.168.1.1 80
 
-# Adjust socket buffers
+# Manipulation mode: Adjust socket buffers WITHOUT closing
 $ tcphup -m SO_SNDBUF:65536 -m SO_RCVBUF:131072 192.168.1.1 80
 
-# Set linger (onoff,seconds or just seconds)
+# Manipulation mode: Set linger WITHOUT closing (onoff,seconds or just seconds)
 $ tcphup -m SO_LINGER:1,30 192.168.1.1 80
 $ tcphup -m SO_LINGER:30 192.168.1.1 80  # Assumes onoff=1
 
-# Combine TCP and socket options
+# Manipulation mode: Combine TCP and socket options WITHOUT closing
 $ tcphup -m TCP_KEEPINTVL:3 -m SO_SNDTIMEO:1.0 -m SO_KEEPALIVE:1 192.168.1.1 80
+
+# Info mode: Set options and display to verify
+$ tcphup -i -m TCP_KEEPINTVL:3 192.168.1.1 80
+$ tcphup -i -m TCP_KEEPINTVL:3 -m SO_KEEPALIVE:1 192.168.1.1 80
 ```
 
 ### Supported TCP Options (SOL_TCP)

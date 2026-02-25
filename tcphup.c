@@ -394,43 +394,44 @@ void thup_parse_tcp_info(struct nlmsghdr *nlh, const char *search_ip, int search
                 continue;
             }
 
-            if (info_mode) {
-                /* Info mode: display all TCP options */
-                display_tcp_options(sfd, pid, fd);
-            } else {
-                /* Normal mode: apply options and shutdown */
-                /* Apply user-specified socket options */
-                for (int i = 0; i < num_options; i++) {
-                    void *optval;
-                    socklen_t optlen;
+            /* Apply user-specified socket options (if any) */
+            for (int i = 0; i < num_options; i++) {
+                void *optval;
+                socklen_t optlen;
 
-                    switch (options[i].type) {
-                        case OPT_TYPE_INT:
-                            optval = &options[i].value.int_val;
-                            optlen = sizeof(options[i].value.int_val);
-                            break;
-                        case OPT_TYPE_TIMEVAL:
-                            optval = &options[i].value.tv_val;
-                            optlen = sizeof(options[i].value.tv_val);
-                            break;
-                        case OPT_TYPE_LINGER:
-                            optval = &options[i].value.linger_val;
-                            optlen = sizeof(options[i].value.linger_val);
-                            break;
-                        default:
-                            fprintf(stderr, "Warning: Unknown option type for socket (pid=%d, fd=%d)\n",
-                                    pid, fd);
-                            continue;
-                    }
-
-                    if (setsockopt(sfd, options[i].level, options[i].optname, optval, optlen) == -1) {
-                        fprintf(stderr, "Warning: Failed to set socket option %d (level=%d) for socket (pid=%d, fd=%d): %s\n",
-                                options[i].optname, options[i].level, pid, fd, strerror(errno));
-                    }
+                switch (options[i].type) {
+                    case OPT_TYPE_INT:
+                        optval = &options[i].value.int_val;
+                        optlen = sizeof(options[i].value.int_val);
+                        break;
+                    case OPT_TYPE_TIMEVAL:
+                        optval = &options[i].value.tv_val;
+                        optlen = sizeof(options[i].value.tv_val);
+                        break;
+                    case OPT_TYPE_LINGER:
+                        optval = &options[i].value.linger_val;
+                        optlen = sizeof(options[i].value.linger_val);
+                        break;
+                    default:
+                        fprintf(stderr, "Warning: Unknown option type for socket (pid=%d, fd=%d)\n",
+                                pid, fd);
+                        continue;
                 }
 
+                if (setsockopt(sfd, options[i].level, options[i].optname, optval, optlen) == -1) {
+                    fprintf(stderr, "Warning: Failed to set socket option %d (level=%d) for socket (pid=%d, fd=%d): %s\n",
+                            options[i].optname, options[i].level, pid, fd, strerror(errno));
+                }
+            }
+
+            if (info_mode) {
+                /* Info mode: display all TCP options (after applying any -m options) */
+                display_tcp_options(sfd, pid, fd);
+            } else if (num_options == 0) {
+                /* Shutdown mode: only shutdown if NO -m options were specified */
                 shutdown(sfd, SHUT_RDWR);
             }
+            /* If -m options were specified without -i, just set them and don't shutdown */
 
             close(sfd);
             close(pidfd);
@@ -464,9 +465,14 @@ int main(int argc, char *argv[]) {
                 break;
             default:
                 fprintf(stderr, "Usage: %s [-i] [-m OPTION:value] ... <IP> <port>\n", argv[0]);
+                fprintf(stderr, "\nModes:\n");
+                fprintf(stderr, "  No flags:     Shutdown matching connections\n");
+                fprintf(stderr, "  -m only:      Manipulate socket options (NO shutdown)\n");
+                fprintf(stderr, "  -i only:      Display socket options\n");
+                fprintf(stderr, "  -i -m:        Manipulate options and display results\n");
                 fprintf(stderr, "\nOptions:\n");
-                fprintf(stderr, "  -i              Display TCP option information (don't shutdown)\n");
-                fprintf(stderr, "  -m OPTION:value Set TCP option before shutdown\n");
+                fprintf(stderr, "  -i              Display TCP socket options\n");
+                fprintf(stderr, "  -m OPTION:value Set TCP socket option (prevents shutdown)\n");
                 fprintf(stderr, "\nSupported TCP options:\n");
                 for (int i = 0; tcp_option_mapping[i].name != NULL; i++) {
                     fprintf(stderr, "  %s\n", tcp_option_mapping[i].name);
@@ -479,18 +485,19 @@ int main(int argc, char *argv[]) {
     if (optind + 2 != argc) {
         fprintf(stderr, "Usage: %s [-i] [-m OPTION:value] ... <IP> <port>\n", argv[0]);
         fprintf(stderr, "\nExamples:\n");
+        fprintf(stderr, "  # Shutdown mode: Close connections\n");
+        fprintf(stderr, "  %s 192.168.1.1 80\n", argv[0]);
+        fprintf(stderr, "  # Info mode: Display options\n");
         fprintf(stderr, "  %s -i 192.168.1.1 80\n", argv[0]);
-        fprintf(stderr, "  %s -m TCP_KEEPINTVL:3 -m TCP_SYNCNT:1 192.168.1.1 80\n", argv[0]);
+        fprintf(stderr, "  # Manipulation mode: Set options WITHOUT closing\n");
+        fprintf(stderr, "  %s -m TCP_KEEPINTVL:3 192.168.1.1 80\n", argv[0]);
+        fprintf(stderr, "  # Info + Manipulation: Set and verify\n");
+        fprintf(stderr, "  %s -i -m TCP_KEEPINTVL:3 192.168.1.1 80\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
     search_ip = argv[optind];
     search_port = atoi(argv[optind + 1]);
-
-    /* Validate: -m options don't make sense with -i */
-    if (info_mode && num_options > 0) {
-        fprintf(stderr, "Warning: -m options are ignored in info mode (-i)\n");
-    }
 
     int sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_INET_DIAG);
 
